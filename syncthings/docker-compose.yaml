@@ -1,0 +1,39 @@
+services:
+  syncthing:
+    image: lscr.io/linuxserver/syncthing:latest
+    container_name: syncthing
+    hostname: syncthing #optional
+    environment:
+      - PUID=1000
+      - PGID=1000
+      - TZ=America/Halifax
+    volumes:
+      - ./config:/config
+      - ./data:/data
+    networks:
+      - traefik-public
+    ports:
+      # Web UI is now handled by Traefik
+      - 22000:22000/tcp
+      - 22000:22000/udp
+      - 21027:21027/udp
+    restart: unless-stopped
+    labels:
+      # Enable Traefik
+      - "traefik.enable=true"
+
+      # Router configuration
+      - "traefik.http.routers.syncthing.rule=Host(`syncthing.bcrowthe.com`)"
+      - "traefik.http.routers.syncthing.entrypoints=websecure"
+      - "traefik.http.routers.syncthing.tls=true"
+      - "traefik.http.routers.syncthing.tls.certresolver=letsencrypt"
+
+      # Service configuration (point to container port)
+      - "traefik.http.services.syncthing.loadbalancer.server.port=8384"
+
+      # Network (explicit declaration)
+      - "traefik.docker.network=traefik-public"
+
+networks:
+  traefik-public:
+    external: true

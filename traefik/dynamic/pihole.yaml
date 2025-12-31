@@ -1,0 +1,15 @@
+http:
+  routers:
+    pihole:
+      rule: "Host(`pihole.bcrowthe.com`)"
+      entryPoints:
+        - websecure
+      service: pihole-service
+      tls:
+        certResolver: letsencrypt
+
+  services:
+    pihole-service:
+      loadBalancer:
+        servers:
+          - url: "http://host.docker.internal:8080"
