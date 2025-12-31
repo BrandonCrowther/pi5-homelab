@@ -1,5 +1,13 @@
 # More info at https://github.com/pi-hole/docker-pi-hole/ and https://docs.pi-hole.net/
 services:
+  unbound:
+    container_name: unbound
+    image: mvdan/unbound:latest
+    network_mode: host
+    volumes:
+      - "./etc-unbound/unbound.conf:/etc/unbound/unbound.conf:ro"
+    restart: unless-stopped
+
   pihole:
     container_name: pihole
     image: pihole/pihole:latest
