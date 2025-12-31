@@ -1,8 +1,9 @@
 # More info at https://github.com/pi-hole/docker-pi-hole/ and https://docs.pi-hole.net/
 services:
+  # TODO: improve on settings here. mostly Claude generated
   unbound:
     container_name: unbound
-    image: mvdan/unbound:latest
+    image: alpinelinux/unbound:latest-aarch64
     network_mode: host
     volumes:
       - "./etc-unbound/unbound.conf:/etc/unbound/unbound.conf:ro"
