@@ -37,6 +37,8 @@ services:
       # Using unbound container for DNS resolution
       DNS1: 'unbound'
       DNS2: 'no'
+      # Allow DNS queries from all networks
+      FTLCONF_dns_listeningMode: 'all'
     volumes:
       # For persisting Pi-hole's databases and common configuration file
       - "./etc-pihole:/etc/pihole"
