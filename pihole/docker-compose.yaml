@@ -9,14 +9,14 @@ services:
     restart: unless-stopped
     networks:
       dns_network:
-        ipv4_address: '172.31.0.53'
+        ipv4_address: "172.31.0.53"
 
   dhcphelper:
     container_name: dhcphelper
     image: homeall/dhcphelper:latest
     network_mode: host
     environment:
-      IP: '172.31.0.100'
+      IP: "172.31.0.100"
       TZ: ${TZ:-America/Halifax}
     cap_add:
       - NET_ADMIN
@@ -35,10 +35,10 @@ services:
       TZ: ${TZ:-America/Halifax}
       FTLCONF_webserver_api_password: ${PASSWORD}
       # Using unbound container for DNS resolution
-      DNS1: 'unbound'
-      DNS2: 'no'
+      DNS1: "172.31.0.53"
+      DNS2: "no"
       # Allow DNS queries from all networks
-      FTLCONF_dns_listeningMode: 'all'
+      FTLCONF_dns_listeningMode: "all"
     volumes:
       # For persisting Pi-hole's databases and common configuration file
       - "./etc-pihole:/etc/pihole"
@@ -58,8 +58,7 @@ services:
     restart: unless-stopped
     networks:
       dns_network:
-        ipv4_address: '172.31.0.100'
-      proxy-tier: {}
+        ipv4_address: "172.31.0.100"
 
 networks:
   dns_network:
@@ -67,5 +66,3 @@ networks:
     ipam:
       config:
         - subnet: 172.31.0.0/16
-  proxy-tier:
-    driver: bridge
