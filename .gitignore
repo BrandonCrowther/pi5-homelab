@@ -1,3 +1,13 @@
+#TODO: standardize config directory
 # Pihole
 pihole/**.env
 pihole/etc-pihole
+
+#Syncthings
+syncthings/config
+syncthings/data
+
+# Traefik
+traefik/acme/acme.json
+traefik/logs/
+traefik/.env

@@ -1,0 +1,55 @@
+# Traefik Static Configuration
+global:
+  checkNewVersion: true
+  sendAnonymousUsage: false
+
+# API and Dashboard
+api:
+  dashboard: true
+  insecure: false  # Don't expose on :8080 without auth
+
+# Entry Points
+entryPoints:
+  web:
+    address: ":80"
+    http:
+      redirections:
+        entryPoint:
+          to: websecure
+          scheme: https
+          permanent: true
+
+  websecure:
+    address: ":443"
+    http:
+      tls:
+        certResolver: letsencrypt
+
+# Certificate Resolvers
+certificatesResolvers:
+  letsencrypt:
+    acme:
+      email: bcrowthe11@gmail.com
+      storage: /acme/acme.json
+      httpChallenge:
+        entryPoint: web
+
+# Providers
+providers:
+  docker:
+    endpoint: "unix:///var/run/docker.sock"
+    exposedByDefault: false  # Require explicit traefik.enable=true
+    network: traefik-public  # Default network for container discovery
+
+  file:
+    directory: /dynamic
+    watch: true
+
+# Logging
+log:
+  level: INFO  # DEBUG, INFO, WARN, ERROR
+  filePath: /logs/traefik.log
+
+accessLog:
+  filePath: /logs/access.log
+  bufferingSize: 100
