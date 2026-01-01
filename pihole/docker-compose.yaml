@@ -55,10 +55,3 @@ services:
       TZ: ${TZ:-America/Halifax}
     cap_add:
       - NET_ADMIN
-
-networks:
-  dns_network:
-    driver: bridge
-    ipam:
-      config:
-        - subnet: 172.31.0.0/16
