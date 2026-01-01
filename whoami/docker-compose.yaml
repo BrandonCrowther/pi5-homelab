@@ -6,7 +6,7 @@ services:
     networks:
       - backend
     labels:
-      - "traefik.http.routers.whoami.rule=Host(`whoami.localhost`)"
+      - "traefik.http.routers.whoami.rule=Host(`whoami.${DOMAIN}`)"
 
 networks:
   backend:

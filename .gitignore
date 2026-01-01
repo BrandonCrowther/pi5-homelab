@@ -1,6 +1,6 @@
 #TODO: standardize config directory
 # Pihole
-pihole/**.env
+**.env
 pihole/etc-pihole
 
 #Syncthings

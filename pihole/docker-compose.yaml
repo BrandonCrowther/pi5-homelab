@@ -12,9 +12,13 @@ services:
       FTLCONF_dns_listeningMode: "LOCAL"
       FTLCONF_webserver_port: 8314
       FTLCONF_dns_upstreams: 127.0.0.1#5335
+      # FTLCONF_misc_etc_dnsmasq_d: true
+      FTLCONF_misc_dnsmasq_lines: |-
+        address=/.pi/192.168.2.207
     volumes:
       # For persisting Pi-hole's databases and common configuration file
       - "./etc-pihole:/etc/pihole"
+      # - "./dnsmasq.d:/etc/dnsmasq.d"
     cap_add:
       # See https://github.com/pi-hole/docker-pi-hole#note-on-capabilities
       # Required if you are using Pi-hole as your DHCP server, else not needed
@@ -27,7 +31,7 @@ services:
 
   unbound:
     container_name: unbound
-    image: alpinelinux/unbound:latest-aarch64
+    image: alpinelinux/unbound:latest
     network_mode: host
     volumes:
       - "./etc-unbound/unbound.conf:/etc/unbound/unbound.conf:ro"
