@@ -34,11 +34,9 @@ services:
       # https://en.wikipedia.org/wiki/List_of_tz_database_time_zones, e.g:
       TZ: ${TZ:-America/Halifax}
       FTLCONF_webserver_api_password: ${PASSWORD}
-      # Using unbound container for DNS resolution
-      DNS1: "172.31.0.53"
-      DNS2: "no"
       # Allow DNS queries from all networks
       FTLCONF_dns_listeningMode: "all"
+      FTLCONF_dns_upstreams: "unbound#53"
     volumes:
       # For persisting Pi-hole's databases and common configuration file
       - "./etc-pihole:/etc/pihole"
