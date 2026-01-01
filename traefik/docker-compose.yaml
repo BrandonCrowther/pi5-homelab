@@ -1,41 +1,20 @@
+# docker-compose.yml
 services:
   traefik:
-    image: traefik:v3.2
+    image: traefik:v3.6
     container_name: traefik
-    restart: unless-stopped
-    security_opt:
-      - no-new-privileges:true
-    networks:
-      - traefik-public
+    command:
+      - "--api.insecure=true"
+      - "--providers.docker=true"
+      - "--entrypoints.web.address=:80"
     ports:
-      - "80:80"       # HTTP (Let's Encrypt challenge)
-      - "443:443"     # HTTPS
-    environment:
-      - TZ=${TZ:-America/Halifax}
+      - "80:80"
+      - "8080:8080"
     volumes:
-      - /var/run/docker.sock:/var/run/docker.sock:ro  # Docker socket (read-only)
-      - ./traefik.yaml:/traefik.yaml:ro                # Static config
-      - ./dynamic:/dynamic:ro                          # Dynamic config directory
-      - ./acme:/acme                                   # Certificate storage
-      - ./logs:/logs                                   # Logs
-    extra_hosts:
-      - "host.docker.internal:host-gateway"
-    labels:
-      # Enable Traefik for this container (dashboard)
-      - "traefik.enable=true"
-
-      # Dashboard router
-      - "traefik.http.routers.traefik-dashboard.rule=Host(`traefik.bcrowthe.com`)"
-      - "traefik.http.routers.traefik-dashboard.entrypoints=websecure"
-      - "traefik.http.routers.traefik-dashboard.tls=true"
-      - "traefik.http.routers.traefik-dashboard.tls.certresolver=letsencrypt"
-      - "traefik.http.routers.traefik-dashboard.service=api@internal"
-      - "traefik.http.routers.traefik-dashboard.middlewares=dashboard-auth"
-
-      # Dashboard authentication
-      - "traefik.http.middlewares.dashboard-auth.basicauth.users=${TRAEFIK_DASHBOARD_AUTH}"
+      - /var/run/docker.sock:/var/run/docker.sock
+    networks:
+      - backend
 
 networks:
-  traefik-public:
-    name: traefik-public
-    external: false
+  backend:
+    name: traefik_backend

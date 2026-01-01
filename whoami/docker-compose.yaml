@@ -1,0 +1,14 @@
+# whoami.yml
+services:
+  whoami:
+    image: traefik/whoami
+    container_name: whoami
+    networks:
+      - backend
+    labels:
+      - "traefik.http.routers.whoami.rule=Host(`whoami.localhost`)"
+
+networks:
+  backend:
+    name: traefik_backend
+    external: true
