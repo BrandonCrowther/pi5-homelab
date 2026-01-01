@@ -15,7 +15,7 @@ services:
       # Allow DNS queries from all networks
       FTLCONF_dns_listeningMode: "all"
       # FTLCONF_dns_upstreams: "172.31.0.53#53"
-      FTLCONF_dns_upstreams: "1.1.1.1"
+      # FTLCONF_dns_upstreams: "1.1.1.1"
     volumes:
       # For persisting Pi-hole's databases and common configuration file
       - "./etc-pihole:/etc/pihole"
@@ -55,3 +55,10 @@ services:
       TZ: ${TZ:-America/Halifax}
     cap_add:
       - NET_ADMIN
+
+networks:
+  dns_network:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.31.0.0/16
