@@ -1,4 +1,7 @@
 # More info at https://github.com/pi-hole/docker-pi-hole/ and https://docs.pi-hole.net/
+# TODO: ipv6 enable
+# TODO: dhcp fixes
+# TODO: lock down with ssl
 services:
   pihole:
     container_name: pihole

@@ -6,8 +6,19 @@ services:
     networks:
       - backend
     labels:
-      - "traefik.http.routers.whoami.rule=Host(`whoami.${DOMAIN}`)"
-      - "traefik.http.routers.whoami.tls.certresolver=le"
+      - "traefik.enable=true"
+      # HTTP router - redirects to HTTPS
+      - "traefik.http.routers.whoami-http.rule=Host(`whoami.${DOMAIN}`)"
+      - "traefik.http.routers.whoami-http.entrypoints=web"
+      - "traefik.http.routers.whoami-http.middlewares=whoami-redirect"
+      # HTTPS router - main service
+      - "traefik.http.routers.whoami-https.rule=Host(`whoami.${DOMAIN}`)"
+      - "traefik.http.routers.whoami-https.entrypoints=websecure"
+      - "traefik.http.routers.whoami-https.tls=true"
+      - "traefik.http.routers.whoami-https.tls.certresolver=le"
+      # Redirect middleware
+      - "traefik.http.middlewares.whoami-redirect.redirectscheme.scheme=https"
+      - "traefik.http.middlewares.whoami-redirect.redirectscheme.permanent=true"
 
 networks:
   backend:
