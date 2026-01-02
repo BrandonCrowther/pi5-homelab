@@ -10,6 +10,10 @@ services:
       - "--providers.docker.exposedbydefault=false"
       - "--entryPoints.web.address=:80"
       - "--entryPoints.websecure.address=:443"
+      # Global HTTP to HTTPS redirect
+      - "--entryPoints.web.http.redirections.entryPoint.to=websecure"
+      - "--entryPoints.web.http.redirections.entryPoint.scheme=https"
+      - "--entryPoints.web.http.redirections.entryPoint.permanent=true"
       # Let's Encrypt configuration
       - "--certificatesresolvers.le.acme.email=bcrowthe11@gmail.com"
       - "--certificatesresolvers.le.acme.storage=/letsencrypt/acme.json"
