@@ -1,0 +1,21 @@
+# caddy.yml
+services:
+  caddy:
+    image: caddy:alpine
+    container_name: caddy
+    volumes:
+      - ./public:/usr/share/caddy:ro
+    networks:
+      - backend
+    labels:
+      - "traefik.enable=true"
+      # HTTPS router - global redirect handles HTTP to HTTPS
+      - "traefik.http.routers.caddy.rule=Host(`blog.${DOMAIN}`)"
+      - "traefik.http.routers.caddy.entrypoints=websecure"
+      - "traefik.http.routers.caddy.tls=true"
+      - "traefik.http.routers.caddy.tls.certresolver=le"
+
+networks:
+  backend:
+    name: traefik_backend
+    external: true
