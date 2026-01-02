@@ -1,4 +1,6 @@
 #TODO: standardize config directory
+CLAUDE.md
+
 # Pihole
 **.env
 pihole/etc-pihole
@@ -12,3 +14,5 @@ traefik/acme/acme.json
 traefik/letsencrypt
 traefik/logs/
 traefik/.env
+
+
