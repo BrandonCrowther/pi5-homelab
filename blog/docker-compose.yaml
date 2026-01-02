@@ -4,7 +4,7 @@ services:
     image: caddy:alpine
     container_name: caddy
     volumes:
-      - ./public:/usr/share/caddy:ro
+      - ../../blog/public/:/usr/share/caddy:ro
     networks:
       - backend
     labels:
