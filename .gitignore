@@ -9,5 +9,6 @@ syncthings/data
 
 # Traefik
 traefik/acme/acme.json
+traefik/letsencrypt
 traefik/logs/
 traefik/.env
