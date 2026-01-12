@@ -1,0 +1,24 @@
+services:
+  vaultwarden:
+    image: vaultwarden/server:latest
+    container_name: vaultwarden
+    restart: unless-stopped
+    environment:
+      DOMAIN: "https://vault.${DOMAIN}"
+      WEBSOCKET_ENABLED: "true"
+    volumes:
+      - ./vw-data/:/data/
+    networks:
+      - backend
+    labels:
+      - "traefik.enable=true"
+      # HTTPS router - global redirect handles HTTP to HTTPS
+      - "traefik.http.routers.vaultwarden.rule=Host(`vault.${DOMAIN}`)"
+      - "traefik.http.routers.vaultwarden.entrypoints=websecure"
+      - "traefik.http.routers.vaultwarden.tls=true"
+      - "traefik.http.routers.vaultwarden.tls.certresolver=le"
+
+networks:
+  backend:
+    name: traefik_backend
+    external: true
