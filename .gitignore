@@ -3,6 +3,7 @@ CLAUDE.md
 
 # Pihole
 **.env
+!static_sites/**.env
 pihole/etc-pihole
 
 #Syncthings
