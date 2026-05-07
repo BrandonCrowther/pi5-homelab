@@ -1,0 +1,21 @@
+services:
+  caddy:
+    image: caddy:alpine
+    container_name: ${SUBDOMAIN}
+    restart: unless-stopped
+    volumes:
+      - ${SITE_SOURCE}:/srv:ro
+      - ${CADDYFILE:-./default.Caddyfile}:/etc/caddy/Caddyfile:ro
+    networks:
+      - backend
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.${SUBDOMAIN}.rule=Host(`${SUBDOMAIN}.${DOMAIN}`)"
+      - "traefik.http.routers.${SUBDOMAIN}.entrypoints=websecure"
+      - "traefik.http.routers.${SUBDOMAIN}.tls=true"
+      - "traefik.http.routers.${SUBDOMAIN}.tls.certresolver=le"
+
+networks:
+  backend:
+    name: traefik_backend
+    external: true
