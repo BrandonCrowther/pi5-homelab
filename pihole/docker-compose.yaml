@@ -14,13 +14,30 @@ services:
       # If using Docker's default `bridge` network setting the dns listening mode should be set to 'ALL'
       FTLCONF_dns_listeningMode: "LOCAL"
       FTLCONF_webserver_port: 8314
-      FTLCONF_dns_upstreams: 127.0.0.1#5335
+      # unbound first, Cloudflare as fallback so a single unbound failure is not
+      # total DNS loss. Semicolon-separated; note dnsmasq load-balances rather
+      # than strictly failing over, so some queries do reach Cloudflare.
+      FTLCONF_dns_upstreams: 127.0.0.1#5335;1.1.1.1
+      FTLCONF_dhcp_active: "true"
+      FTLCONF_dhcp_start: 192.168.2.10
+      FTLCONF_dhcp_end: 192.168.2.199
+      FTLCONF_dhcp_router: 192.168.2.1
+      # The Hub advertises no IPv6 prefix on this LAN (eth0 has link-local only,
+      # no v6 default route), so enabling DHCPv6 only made dnsmasq send RAs that
+      # clients answered with solicitations we had no range to satisfy.
+      FTLCONF_dhcp_ipv6: "false"
+      # Long lease so a Pi-hole or router outage does not age every client off
+      # the network within the hour. Pool is ~190 addresses for ~10 devices.
+      FTLCONF_dhcp_leaseTime: 24h
       # FTLCONF_misc_etc_dnsmasq_d: true
       FTLCONF_misc_dnsmasq_lines: |-
-        address=/.pi/192.168.2.207
+        address=/.pi/192.168.2.208
     volumes:
       # For persisting Pi-hole's databases and common configuration file
       - "./etc-pihole:/etc/pihole"
+      # FTL's logs live here. Without this mount they are destroyed whenever the
+      # container is recreated, taking the diagnostic history with them.
+      - "./var-log-pihole:/var/log/pihole"
       # - "./dnsmasq.d:/etc/dnsmasq.d"
     cap_add:
       # See https://github.com/pi-hole/docker-pi-hole#note-on-capabilities
@@ -38,4 +55,10 @@ services:
     network_mode: host
     volumes:
       - "./etc-unbound/unbound.conf:/etc/unbound/unbound.conf:ro"
+    ulimits:
+      # outgoing-range (950) * num-threads (2) needs ~1900 sockets; the default
+      # limit of 1024 meant unbound silently capped well below its config.
+      nofile:
+        soft: 4096
+        hard: 4096
     restart: unless-stopped
