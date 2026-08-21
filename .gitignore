@@ -16,4 +16,26 @@ traefik/letsencrypt
 traefik/logs/
 traefik/.env
 
+# Home Assistant runtime state. .storage/auth holds the credential record and
+# refresh tokens -- those are long-lived bearer tokens that survive a password
+# change, so a single `git add .` would leak persistent admin access. The
+# sqlite DBs are full sensor/presence history. Keep the whole dir out.
+# Must be `config/*` and not `config/`: git does not descend into an excluded
+# directory, so the negations below are only reachable if the directory itself
+# stays un-excluded. Everything under it (including .storage) is excluded by
+# the star, and only the hand-written config files are added back.
+homeassistant/config/*
+!homeassistant/config/configuration.yaml
+!homeassistant/config/automations.yaml
+!homeassistant/config/scripts.yaml
+!homeassistant/config/scenes.yaml
+!homeassistant/config/command_line.yaml
+
+# Vaultwarden data: encrypted vaults, but also the RSA keypair and attachments.
+vaultwarden/vw-data/
+
+# Maddy: photo library and runtime data.
+maddy/data/
+maddy/photos/
+
 

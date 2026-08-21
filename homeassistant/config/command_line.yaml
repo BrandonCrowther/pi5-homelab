@@ -1,0 +1,101 @@
+# Service status probes for the homelab dashboard.
+#
+# Replaces the old `homepage` stack's service cards. Included from
+# configuration.yaml as `command_line: !include command_line.yaml`.
+#
+# Each probe runs `curl` inside the HA container -- verified present at
+# /usr/bin/curl on ghcr.io/home-assistant/home-assistant:stable. The container
+# is network_mode: host, so it probes from the Pi's own network position: LAN
+# IPs and public hostnames both resolve, but Docker service names do NOT
+# (there is no container IP to resolve them against).
+#
+# `-f` makes curl exit non-zero on HTTP >= 400, so `&& echo ON || echo OFF`
+# covers both a bad status code and a refused/timed-out connection. That is
+# why there is no value_template here: ON/OFF are command_line's default
+# payload_on/payload_off.
+#
+# `-L` follows redirects, which matters for the services that 302 on `/`
+# (Pi-hole -> /admin/login, Vaultwarden -> /#/).
+#
+# Entities are named "Status <service>" so they land on predictable ids
+# (binary_sensor.status_blog) and cannot collide with the entities the
+# Glances and Pi-hole integrations create for the same machines.
+# --- Public services, probed end-to-end through the real user path:
+# --- public DNS -> traefik -> TLS -> the service itself. A failure here
+# --- means a visitor would see the failure too, which is the point.
+- binary_sensor:
+    name: Status Blog
+    unique_id: status_blog
+    command: 'curl -sfL -o /dev/null --max-time 10 https://blog.bcrowthe.com/ && echo ON || echo OFF'
+    device_class: connectivity
+    scan_interval: 60
+
+- binary_sensor:
+    name: Status FPS
+    unique_id: status_fps
+    command: 'curl -sfL -o /dev/null --max-time 10 https://fps.bcrowthe.com/ && echo ON || echo OFF'
+    device_class: connectivity
+    scan_interval: 60
+
+- binary_sensor:
+    name: Status Vaultwarden
+    unique_id: status_vaultwarden
+    command: 'curl -sfL -o /dev/null --max-time 10 https://vault.bcrowthe.com/ && echo ON || echo OFF'
+    device_class: connectivity
+    scan_interval: 60
+
+- binary_sensor:
+    name: Status Maddy
+    unique_id: status_maddy
+    command: 'curl -sfL -o /dev/null --max-time 10 https://maddy.bcrowthe.com/ && echo ON || echo OFF'
+    device_class: connectivity
+    scan_interval: 60
+
+- binary_sensor:
+    name: Status Whoami
+    unique_id: status_whoami
+    command: 'curl -sfL -o /dev/null --max-time 10 https://whoami.bcrowthe.com/ && echo ON || echo OFF'
+    device_class: connectivity
+    scan_interval: 60
+
+# --- Infrastructure, probed internally.
+
+# Traefik is checked on the host's own :443 rather than its API port. The
+# API (--api.insecure=true) is deliberately NOT published to the host -- it
+# is reachable only on the traefik_backend bridge, at an IP Docker assigns
+# and may change. Loopback :443 has no such fragility.
+#
+# Traefik answers 404 here because no router matches Host(`127.0.0.1`); that
+# is still proof it is alive and serving TLS. So the test is "did we get any
+# HTTP response at all" -- curl writes 000 when the connection itself fails.
+- binary_sensor:
+    name: Status Traefik
+    unique_id: status_traefik
+    command: 'curl -sk -o /dev/null -w "%{http_code}" --max-time 10 https://127.0.0.1/'
+    value_template: "{{ 'ON' if value | int(0) > 0 else 'OFF' }}"
+    device_class: connectivity
+    scan_interval: 60
+
+- binary_sensor:
+    name: Status Pi-hole
+    unique_id: status_pihole
+    command: 'curl -sfL -o /dev/null --max-time 10 http://192.168.2.3:8314/admin/ && echo ON || echo OFF'
+    device_class: connectivity
+    scan_interval: 60
+
+# The two Glances backends. These are what the Glances integrations below
+# feed on, so if one of these goes OFF the CPU/memory/temperature cards for
+# that machine will go unavailable rather than stale.
+- binary_sensor:
+    name: Status Glances Pi5
+    unique_id: status_glances_pi5
+    command: 'curl -sfL -o /dev/null --max-time 10 http://192.168.2.2:61208/api/4/cpu && echo ON || echo OFF'
+    device_class: connectivity
+    scan_interval: 60
+
+- binary_sensor:
+    name: Status Glances Pi3
+    unique_id: status_glances_pi3
+    command: 'curl -sfL -o /dev/null --max-time 10 http://192.168.2.3:61208/api/4/cpu && echo ON || echo OFF'
+    device_class: connectivity
+    scan_interval: 60

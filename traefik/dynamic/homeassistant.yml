@@ -1,0 +1,38 @@
+# Home Assistant public route -- DISABLED.
+#
+# The file provider only parses .yml/.yaml/.toml/.json, so the .disabled
+# suffix keeps this inert. To go live:
+#
+#   1. Enroll TOTP first: HA -> profile (bottom-left) -> Multi-factor
+#      authentication -> "Enable" under Authenticator app. Without this the
+#      only thing between the internet and admin control of every device in
+#      the house is one password. This is the whole reason the file is off.
+#   2. mv homeassistant.yml.disabled homeassistant.yml
+#   3. Traefik picks it up within a second (watch=true); no restart needed.
+#   4. Confirm the cert: curl -sI https://ha.bcrowthe.com | head -1
+#
+# To roll back, rename it back. Bans land in
+# homeassistant/config/ip_bans.yaml; delete a line there to unban yourself.
+http:
+  routers:
+    homeassistant:
+      rule: "Host(`ha.bcrowthe.com`)"
+      entryPoints:
+        - websecure
+      tls:
+        certResolver: le
+      middlewares:
+        - secure-public@file
+      service: homeassistant
+
+  services:
+    homeassistant:
+      loadBalancer:
+        servers:
+          # Home Assistant runs network_mode: host for mDNS/SSDP discovery, so
+          # it has no container IP and the Docker provider cannot see it. This
+          # is the Pi's LAN address; verified reachable from inside the traefik
+          # container. (The 192.168.2.208 in homeassistant/docker-compose.yaml
+          # is a stale comment -- the host is .2.)
+          - url: "http://192.168.2.2:8123"
+        passHostHeader: true

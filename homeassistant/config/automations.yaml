@@ -1,0 +1,128 @@
+# Re-adapt the bathroom light the moment it becomes reachable again.
+#
+# Adaptive Lighting only applies its curve instantly on a literal 'off' -> 'on'
+# transition (switch.py: `elif old_off and new_on` requires the *old* state to
+# be exactly STATE_OFF). A Zigbee bulb cut at the wall switch goes
+# 'unavailable' -> 'on' instead, which misses that branch entirely. And since
+# `only_once: true` is now set in configuration.yaml, AL's 90s interval tick
+# returns early without touching the light -- so without this automation the
+# bulb would sit at its power-on level indefinitely.
+#
+# This handles the BRIGHTEN half: during the day it pulls the bulb up to the
+# curve's daytime value. The dim half is handled by the bulb's own firmware --
+# see the power_on_level automation below, which is what prevents the initial
+# blast of light this automation can only ever correct *after the fact*.
+#
+# Triggering on `to: "on"` only fires on real state changes, not on the
+# attribute-only updates AL's own adapts produce, so this cannot feed back on
+# itself. The 3s delay gives ZHA time to finish reading the bulb's clusters;
+# commands sent before that tend to be dropped.
+#
+# KNOWN LIMITATION -- read before trusting this automation. It fires on
+# 'unavailable' -> 'on', but ZHA only marks a mains-powered device unavailable
+# after CONF_DEFAULT_CONSIDER_UNAVAILABLE_MAINS = 2 HOURS
+# (zha/application/const.py:78). A normal wall-switch cycle is far shorter than
+# that, so the entity never leaves 'on' and this NEVER FIRES -- its
+# last_triggered has been None since it was written.
+#
+# To make it work, shorten ZHA's availability window: Settings -> Devices &
+# Services -> ZHA -> Configure -> "Consider unavailable (mains)", set to ~60s.
+# Until that is done, the bulb's firmware power_on_level below is doing ALL of
+# the work, which means the light stays dim during the day as well.
+- id: bathroom_adaptive_lighting_reapply_on_available
+  initial_state: false  # TEMPORARY: off for the power-on-level test
+  alias: Bathroom light - re-apply adaptive curve when it comes back on
+  description: >-
+    Covers the wall-switch/rejoin case that Adaptive Lighting's own
+    off -> on handler does not catch.
+  mode: single
+  triggers:
+    - trigger: state
+      entity_id: light.third_reality_inc_3rcb01057z
+      from: unavailable
+      to: "on"
+  actions:
+    - delay: "00:00:03"
+    - action: adaptive_lighting.apply
+      data:
+        entity_id: switch.bathroom_adaptive_lighting_adaptive_lighting_bathroom_adaptive_lighting
+        lights: light.third_reality_inc_3rcb01057z
+        transition: 2
+        turn_on_lights: false
+
+# Set the bulb's power-on brightness from the sun, so the wall switch alone
+# gives the right result with no help from Home Assistant at flip time.
+#
+# WHY THIS AND NOT ADAPTIVE LIGHTING: the wall switch cuts mains. The bulb
+# lights from its own firmware before it has rejoined the mesh, so by the time
+# HA sees it, the flash has already happened. Nothing HA does can be early
+# enough. The only thing that acts in time is an attribute stored ON the bulb:
+# ZCL LevelControl StartUpCurrentLevel (0x4000), exposed by ZHA as
+# number.*_power_on_level.
+#
+# VERIFIED WORKING: zigbee.db attributes_cache shows StartUpCurrentLevel=13
+# written 18:57:38, and CurrentLevel=13 read at 19:08:38 -- the instant the
+# bulb came back from a wall-switch cycle. The bulb honours it.
+#
+# 13 is 5% of 255, matching min_brightness in configuration.yaml. 254 rather
+# than 255 for daytime because in ZCL 0xFF is the magic value "restore previous
+# level", not "full" -- writing 255 would reintroduce exactly the resume-at-
+# yesterday's-brightness behaviour this replaces.
+#
+# The value lives in the bulb's NVRAM, so the guard below keeps this from
+# burning a flash write every 15 minutes; it only writes when the target
+# actually changes, i.e. about twice a day.
+#
+# RESIDUAL RISK: the write needs the bulb powered. If HA is down across sunset,
+# or the bulb is switched off at the wall from before sunset until the middle of
+# the night, it will still be holding the daytime 254. The 15-minute re-assert
+# plus the rejoin trigger closes that as soon as the bulb is reachable again --
+# but the first flip after such a gap can still be bright.
+- id: bathroom_light_power_on_level_by_sun
+  alias: Bathroom light - set power-on brightness from sun position
+  description: >-
+    Writes the bulb's firmware StartUpCurrentLevel: dim after dark, bright
+    during the day. This is what makes the wall switch behave.
+  mode: single
+  triggers:
+    - trigger: homeassistant
+      event: start
+    - trigger: time_pattern
+      minutes: "/15"
+    # `to:` is required here. A bare state trigger on sun.sun also fires on
+    # attribute-only changes -- elevation/azimuth update every ~30s -- which
+    # would re-run this automation continuously. Listing the two real states
+    # limits it to the actual sunrise/sunset crossings.
+    - trigger: state
+      entity_id: sun.sun
+      to:
+        - above_horizon
+        - below_horizon
+    - trigger: state
+      entity_id: light.third_reality_inc_3rcb01057z
+      from: unavailable
+      to: "on"
+  actions:
+    # Let ZHA finish interrogating the device; writes before that get dropped.
+    - delay: "00:00:10"
+    - variables:
+        # TEMPORARY: pinned to 13 for the test. Restore to
+        #   {{ 13 if is_state('sun.sun', 'below_horizon') else 254 }}
+        # once we know whether OnLevel is the culprit.
+        target: 13
+    # Write BOTH attributes. StartUpCurrentLevel (0x4000) sets the level at
+    # power-up; OnLevel (0x0011) is what the bulb jumps to on an Off->On
+    # transition, which StartUpOnOff=1 forces at every power-up. If this
+    # firmware treats OnLevel=255 as a literal level rather than ZCL's
+    # "undefined / leave alone", it overrides the startup level -- which is the
+    # leading theory for the flashbang.
+    - action: number.set_value
+      target:
+        entity_id: number.third_reality_inc_3rcb01057z_power_on_level
+      data:
+        value: "{{ target | int }}"
+    - action: number.set_value
+      target:
+        entity_id: number.third_reality_inc_3rcb01057z_on_level
+      data:
+        value: "{{ target | int }}"

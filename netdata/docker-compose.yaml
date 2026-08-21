@@ -5,6 +5,14 @@ services:
     hostname: pi5-homelab
     restart: unless-stopped
 
+    # Bounded logs: 3 rotated files of 10 MB, so 30 MB per service at worst.
+    # json-file has no time-based retention, so size is the only knob there is.
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
     # Netdata needs elevated privileges to monitor the host
     cap_add:
       - SYS_PTRACE

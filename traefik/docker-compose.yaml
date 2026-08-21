@@ -4,11 +4,31 @@ services:
     image: traefik:v3.6
     container_name: traefik
     restart: unless-stopped
+    # Bounded logs: 3 rotated files of 10 MB, so 30 MB per service at worst.
+    # json-file has no time-based retention, so size is the only knob there is.
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
     command:
+      # api.insecure serves the API/dashboard unauthenticated on :8080. That is
+      # kept ON deliberately -- but :8080 is NO LONGER published to the host
+      # (see ports below), so it is reachable only from the traefik_backend
+      # network. Nothing consumes it programmatically any more -- the homepage
+      # widget that used http://traefik:8080 is gone. Reach the dashboard by
+      # SSH tunnel, as described under ports below.
+      # Do not re-publish 8080; the insecure entrypoint bypasses middlewares,
+      # so basic-auth cannot protect it. Keep it network-internal instead.
       - "--api.insecure=true"
       - "--api.dashboard=true"
       - "--providers.docker=true"
       - "--providers.docker.exposedbydefault=false"
+      # File provider for routes that Docker labels cannot express -- notably
+      # host-network containers like Home Assistant, which have no container IP
+      # for the Docker provider to discover.
+      - "--providers.file.directory=/etc/traefik/dynamic"
+      - "--providers.file.watch=true"
       - "--entryPoints.web.address=:80"
       - "--entryPoints.websecure.address=:443"
       # Global HTTP to HTTPS redirect
@@ -22,11 +42,16 @@ services:
     ports:
       - "80:80"
       - "443:443"
-      - "8080:8080"
+      # 8080 (dashboard) is intentionally NOT published. It was bound to
+      # 0.0.0.0 and unauthenticated, which leaked the full routing map to
+      # anyone on the LAN -- and to the internet if the router ever forwarded
+      # it. Reach it with an SSH tunnel when you need it:
+      #   ssh -L 8080:172.21.0.3:8080 admin@192.168.2.2  -> http://localhost:8080
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
       # ...Existing volumes...
       - "./letsencrypt:/letsencrypt"
+      - "./dynamic:/etc/traefik/dynamic:ro"
     networks:
       - backend
 

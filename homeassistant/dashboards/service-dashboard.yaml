@@ -1,0 +1,201 @@
+# Service Dashboard -- the replacement for the retired `homepage` stack.
+#
+# HOW THIS IS LOADED: it is a *storage-mode* dashboard. Home Assistant owns the
+# live copy in config/.storage/lovelace.service_dashboard, which is gitignored,
+# and this file is the version-controlled record of it.
+#
+# That means the dashboard is editable in the UI (the pencil works), but the
+# two copies can drift: editing in the UI does NOT write back here. Run
+# ./export.sh after UI edits to refresh this file from the live config.
+#
+# It lives at https://ha.bcrowthe.com/service-dashboard -- HA rejects a
+# dashboard url_path without a hyphen, so "servicedashboard" is not valid.
+#
+# Every entity id below is real and verified reporting -- no placeholders.
+#
+# Two naming quirks worth knowing before you edit:
+#
+#   * The Pi 5 Glances config entry was named "192.168.2.2", so its entities
+#     are sensor.192_168_2_2_*, while the Pi 3 entry was named "Raspberry Pi 3"
+#     and gives the tidier sensor.raspberry_pi_3_*. Renaming the Pi 5 entry
+#     would regenerate its entity ids and break every reference here.
+#
+#   * The status probe for Pi-hole is binary_sensor.status_pi_hole, not
+#     status_pihole -- HA slugified the hyphen in "Status Pi-hole".
+#
+views:
+  - title: Service Dashboard
+    path: services
+    type: sections
+    max_columns: 3
+    sections:
+      # ----------------------------------------------------------------
+      # Service reachability, from config/command_line.yaml. The public
+      # entries probe their real hostnames, so a green tile means the whole
+      # path works: public DNS -> traefik -> TLS -> the service itself.
+      - type: grid
+        cards:
+          - type: heading
+            heading: Services
+            heading_style: title
+            icon: mdi:server-network
+
+          - type: tile
+            entity: binary_sensor.status_traefik
+            name: Traefik
+            icon: mdi:router-network
+          - type: tile
+            entity: binary_sensor.status_vaultwarden
+            name: Vaultwarden
+            icon: mdi:shield-key
+          - type: tile
+            entity: binary_sensor.status_pi_hole
+            name: Pi-hole
+            icon: mdi:raspberry-pi
+          - type: tile
+            entity: binary_sensor.status_blog
+            name: Blog
+            icon: mdi:post
+          - type: tile
+            entity: binary_sensor.status_fps
+            name: FPS
+            icon: mdi:image-multiple
+          - type: tile
+            entity: binary_sensor.status_maddy
+            name: Maddy
+            icon: mdi:image-album
+          - type: tile
+            entity: binary_sensor.status_whoami
+            name: Whoami
+            icon: mdi:help-network
+
+      # ----------------------------------------------------------------
+      # CPU / memory / temperature, mirroring the three cards the old
+      # homepage config drew per host. cpu_usage is the percentage the
+      # homepage `metric: cpu` widget showed -- NOT cpu_load, which is the
+      # load average and would read as a much smaller, differently-scaled
+      # number on a 0-100 gauge.
+      - type: grid
+        cards:
+          - type: heading
+            heading: Raspberry Pi 5
+            heading_style: title
+            icon: mdi:cpu-64-bit
+
+          - type: tile
+            entity: binary_sensor.status_glances_pi5
+            name: Glances
+            icon: mdi:chart-line
+
+          - type: gauge
+            entity: sensor.192_168_2_2_cpu_usage
+            name: CPU
+            min: 0
+            max: 100
+            severity: { green: 0, yellow: 60, red: 85 }
+          - type: gauge
+            entity: sensor.192_168_2_2_memory_usage
+            name: Memory
+            min: 0
+            max: 100
+            severity: { green: 0, yellow: 70, red: 90 }
+          # Same probe the old config pulled as `sensor:cpu_thermal 0`.
+          # A Pi 5 starts throttling around 80-85 C, hence the red band.
+          - type: gauge
+            entity: sensor.192_168_2_2_cpu_thermal_0_temperature
+            name: Temperature
+            min: 20
+            max: 90
+            needle: true
+            severity: { green: 20, yellow: 65, red: 80 }
+
+      # ----------------------------------------------------------------
+      - type: grid
+        cards:
+          - type: heading
+            heading: Raspberry Pi 3
+            heading_style: title
+            icon: mdi:cpu-32-bit
+
+          - type: tile
+            entity: binary_sensor.status_glances_pi3
+            name: Glances
+            icon: mdi:chart-line
+
+          - type: gauge
+            entity: sensor.raspberry_pi_3_cpu_usage
+            name: CPU
+            min: 0
+            max: 100
+            severity: { green: 0, yellow: 60, red: 85 }
+          - type: gauge
+            entity: sensor.raspberry_pi_3_memory_usage
+            name: Memory
+            min: 0
+            max: 100
+            severity: { green: 0, yellow: 70, red: 90 }
+          - type: gauge
+            entity: sensor.raspberry_pi_3_cpu_thermal_0_temperature
+            name: Temperature
+            min: 20
+            max: 90
+            needle: true
+            severity: { green: 20, yellow: 65, red: 80 }
+
+      # ----------------------------------------------------------------
+      # The old homepage pihole widget was read-only. The integration also
+      # exposes switch.pi_hole, so blocking can be paused from here and from
+      # automations.
+      - type: grid
+        cards:
+          - type: heading
+            heading: Pi-hole
+            heading_style: title
+            icon: mdi:dns
+
+          # sensor.pi_hole_ads_percentage_blocked reports full float precision
+          # (e.g. 7.73824644088745) because the integration sets no suggested
+          # display precision. To trim it: Settings -> Devices & Services ->
+          # Entities -> that entity -> cog -> Display precision -> 1.
+          - type: gauge
+            entity: sensor.pi_hole_ads_percentage_blocked
+            name: Blocked
+            min: 0
+            max: 100
+            severity: { green: 0, yellow: 0, red: 0 }
+
+          - type: entities
+            entities:
+              - entity: sensor.pi_hole_dns_queries
+                name: Queries today
+              - entity: sensor.pi_hole_ads_blocked
+                name: Ads blocked today
+              - entity: sensor.pi_hole_domains_blocked
+                name: Domains on blocklist
+              - entity: binary_sensor.pi_hole_status
+                name: Reachable
+              - entity: switch.pi_hole
+                name: Blocking
+
+      # ----------------------------------------------------------------
+      - type: grid
+        cards:
+          - type: heading
+            heading: Fredericton
+            heading_style: title
+            icon: mdi:weather-partly-cloudy
+
+          - type: weather-forecast
+            entity: weather.home
+            forecast_type: daily
+            show_current: true
+            show_forecast: true
+
+          # Clock. A markdown card re-renders when `now()` crosses a minute
+          # boundary, so this ticks once a minute -- not once a second like the
+          # old homepage `datetime` widget with timeStyle: long. Seconds would
+          # need a HACS clock card; a minute clock needs nothing.
+          - type: markdown
+            content: |
+              # {{ now().strftime('%H:%M') }}
+              ### {{ now().strftime('%A, %-d %B %Y') }}

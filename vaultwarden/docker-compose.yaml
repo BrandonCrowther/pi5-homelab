@@ -3,6 +3,13 @@ services:
     image: vaultwarden/server:latest
     container_name: vaultwarden
     restart: unless-stopped
+    # Bounded logs: 3 rotated files of 10 MB, so 30 MB per service at worst.
+    # json-file has no time-based retention, so size is the only knob there is.
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
     environment:
       DOMAIN: "https://vault.${DOMAIN}"
       WEBSOCKET_ENABLED: "true"
@@ -17,6 +24,10 @@ services:
       - "traefik.http.routers.vaultwarden.entrypoints=websecure"
       - "traefik.http.routers.vaultwarden.tls=true"
       - "traefik.http.routers.vaultwarden.tls.certresolver=le"
+      # Rate limit + HSTS/nosniff/referrer-policy. Defined in
+      # ../traefik/dynamic/middlewares.yml. This is a public, credential-bearing
+      # endpoint that previously had no throttling in front of it at all.
+      - "traefik.http.routers.vaultwarden.middlewares=secure-public@file"
 
 networks:
   backend:

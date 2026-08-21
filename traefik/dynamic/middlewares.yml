@@ -1,0 +1,55 @@
+# Shared middlewares, available to any router as `<name>@file`.
+#
+# Loaded by the file provider (--providers.file.directory=/etc/traefik/dynamic)
+# with watch=true, so edits here apply without restarting traefik.
+http:
+  middlewares:
+    # Rate limit for authentication-bearing endpoints. average/burst are per
+    # source IP over the `period`, so this is 30 req/s sustained with a 60-req
+    # bucket for bursts -- generous for a dashboard that opens dozens of
+    # parallel websocket/asset requests, tight enough that password guessing
+    # hits the wall long before Home Assistant's own 5-attempt ban does.
+    rate-limit:
+      rateLimit:
+        average: 30
+        period: 1s
+        burst: 60
+        sourceCriterion:
+          ipStrategy:
+            # Traefik terminates TLS, so the client IP is already the real one
+            # from the connection; depth 0 (default) uses the remote address.
+            # Do NOT switch to X-Forwarded-For here -- nothing upstream of
+            # traefik sets it, so a client could forge it and dodge the limit.
+            depth: 0
+
+    # Stricter limit for login endpoints specifically: 1 req/s sustained,
+    # 5-request bucket. Applied only where a POST means a credential attempt.
+    rate-limit-auth:
+      rateLimit:
+        average: 1
+        period: 1s
+        burst: 5
+
+    security-headers:
+      headers:
+        # HSTS: 1 year, tell browsers to force HTTPS for the whole domain.
+        # includeSubDomains covers *.bcrowthe.com -- every subdomain must be
+        # able to serve valid HTTPS before this is enabled, which is true here
+        # since traefik redirects :80 -> :443 globally and issues certs per host.
+        stsSeconds: 31536000
+        stsIncludeSubdomains: true
+        stsPreload: false # do not preload until you are sure; it is hard to undo
+        forceSTSHeader: true
+        contentTypeNosniff: true
+        browserXssFilter: true
+        referrerPolicy: "strict-origin-when-cross-origin"
+        # frameDeny is deliberately NOT set globally: Home Assistant sets its
+        # own X-Frame-Options: SAMEORIGIN, and its dashboards iframe some
+        # panels. Set it per-router where you actually want it.
+
+    # Convenience bundle for public, credential-bearing services.
+    secure-public:
+      chain:
+        middlewares:
+          - security-headers
+          - rate-limit

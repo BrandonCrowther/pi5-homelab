@@ -1,0 +1,38 @@
+services:
+  glances:
+    image: nicolargo/glances:latest-full
+    container_name: glances
+    hostname: pi5-homelab
+    restart: unless-stopped
+    # Bounded logs: 3 rotated files of 10 MB, so 30 MB per service at worst.
+    # json-file has no time-based retention, so size is the only knob there is.
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+    # Without this Glances only sees its own process namespace, so load and
+    # process counts would describe the container rather than the Pi.
+    pid: host
+    environment:
+      # -w runs the web server, which also serves the REST API under /api/4/.
+      GLANCES_OPT: "-w"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - /etc/os-release:/etc/os-release:ro
+      # Filesystem stats come from this container's mount namespace, which
+      # otherwise holds nothing but the two binds above. Mounting the host
+      # root makes the real disk visible — as /rootfs, since that is where it
+      # lands. Consumers must ask for /rootfs, not /.
+      - /:/rootfs:ro
+    ports:
+      - "61208:61208"
+    networks:
+      - backend
+
+# Shared with the other stacks so they can reach this by container name
+# instead of going back out through the published port.
+networks:
+  backend:
+    name: traefik_backend
+    external: true

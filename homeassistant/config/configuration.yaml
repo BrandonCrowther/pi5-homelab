@@ -1,0 +1,105 @@
+
+# Loads default set of integrations. Do not remove.
+default_config:
+
+# Load frontend themes from the themes folder
+frontend:
+  themes: !include_dir_merge_named themes
+
+# Reverse-proxy and brute-force settings.
+#
+# use_x_forwarded_for/trusted_proxies must be set together with
+# login_attempts_threshold: behind traefik every request arrives from the
+# traefik container, so without these HA would see one client IP for the whole
+# internet and ban traefik itself after 5 bad guesses -- locking out everyone.
+# With them, HA reads the real client IP from X-Forwarded-For and bans that.
+#
+# Only trust the traefik_backend subnet. Widening this to 0.0.0.0/0 would let
+# anyone spoof X-Forwarded-For and evade the ban list entirely.
+http:
+  use_x_forwarded_for: true
+  trusted_proxies:
+    - 172.21.0.0/16 # traefik_backend; traefik is 172.21.0.3
+  ip_ban_enabled: true
+  # Was -1 (HA's default), which means "never ban". Bans are written to
+  # config/ip_bans.yaml and persist across restarts; delete a line to unban.
+  login_attempts_threshold: 5
+
+# Service status probes for the homelab dashboard (replaces the homepage stack).
+command_line: !include command_line.yaml
+
+# The Service Dashboard is a storage-mode dashboard, so there is deliberately
+# no `lovelace:` block here. HA owns it in .storage/lovelace.service_dashboard
+# and it is editable in the UI; the version-controlled record of it lives at
+# ../dashboards/service-dashboard.yaml, refreshed by ../dashboards/export.sh.
+#
+# It was briefly YAML-mode (`lovelace: dashboards: ... mode: yaml`). That made
+# the repo file authoritative but disabled the UI editor, which was the wrong
+# trade here.
+
+automation: !include automations.yaml
+script: !include scripts.yaml
+scene: !include scenes.yaml
+
+# Adaptive Lighting for the bathroom.
+#
+# Kept here rather than in the UI so the curve is version-controlled. On startup
+# AL imports this block and writes it into the *existing* "Bathroom Adaptive
+# Lighting" config entry -- matching on `name`, which is the entry's unique_id --
+# so this replaces that entry's settings instead of creating a second one.
+#
+# Caveat: YAML lands in the entry's `data`, which wins over the `options` the UI
+# writes (switch.py `validate()` applies data last). The Configure dialog stays
+# clickable but has no effect while this block exists. Edit here, not there.
+#
+# The curve. `brightness_mode: tanh` ramps between max_brightness and
+# min_brightness across a window straddling each sun event, split into a daylight
+# side (brightness_mode_time_light) and a night side (brightness_mode_time_dark):
+#
+#   sunset:  100% -> 5%  over [sunset  - light, sunset  + dark]
+#   sunrise:   5% -> 100% over [sunrise - dark,  sunrise + light]
+#
+# Note the two events share the same pair of knobs and mirror each other around
+# the night. light=0 / dark=1h therefore puts both ramps entirely inside the
+# night: full brightness right up to sundown, an hour of dimming to 5%, 5% held
+# overnight, then the reverse hour climbing back to 100% by sunrise.
+#
+# tanh is an S-curve -- it reaches 5%/95% of the range at the window edges and
+# asymptotes to the ends, so it eases in and out instead of cornering. Over a
+# 5-100 range that means ~95% at the moment of sundown and ~10% an hour later,
+# settling to 5% shortly after. Swap in `brightness_mode: linear` for a straight
+# line that is exactly 100% at sundown and exactly 5% one hour later, at the
+# cost of a visible kink at both ends of the ramp.
+#
+# Because `only_once: true` (below), this curve is SAMPLED ONCE -- at the moment
+# the light is switched on -- rather than stepped through while it is on. The
+# ramp shape therefore describes "how bright will it be if I flip the switch at
+# time T", not an animation the bulb performs.
+adaptive_lighting:
+  - name: Bathroom Adaptive Lighting
+    lights:
+      - light.third_reality_inc_3rcb01057z # "Bathroom Light 1" (ZHA)
+    min_brightness: 5 # the overnight floor: 5% == raw brightness 13 of 255
+    max_brightness: 100
+    brightness_mode: tanh
+    brightness_mode_time_light: 0 # daylight side of each ramp
+    brightness_mode_time_dark: 3600 # night side of each ramp: one hour
+
+    # Adapt the light ONLY at the moment it is switched on, then leave it alone.
+    #
+    # This is the whole point of the setup: flip the switch at 3am and it comes
+    # up dim, flip it at noon and it comes up bright. What it deliberately does
+    # NOT do is keep changing the brightness while you are standing under it.
+    #
+    # With the default (false) AL re-sent brightness to the bulb every
+    # `interval` seconds -- 90 by default -- for as long as the light was on.
+    # That is what filled the log with ZHA "device did not respond" errors:
+    # roughly 40 Zigbee writes an hour to one battery-of-a-mesh-hop bulb, of
+    # which a few always time out. With only_once the interval timer still
+    # fires but returns immediately without touching the light (switch.py
+    # `if not force and self._only_once: return`), so the traffic stops.
+    #
+    # `intercept: true` (already set, AL's default) is what makes this pleasant:
+    # AL rewrites the `light.turn_on` call itself, so the bulb comes on AT the
+    # dim value rather than flashing 100% and fading down afterwards.
+    only_once: true

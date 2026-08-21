@@ -1,0 +1,54 @@
+# Home Assistant - LOCAL ONLY (for now)
+# Reachable on the LAN at http://192.168.2.2:8123
+#
+# Exposure is prepared but NOT active. The route lives in
+# ../traefik/dynamic/homeassistant.yml.disabled -- rename off the .disabled
+# suffix to go live. It uses the file provider rather than labels here because
+# network_mode: host leaves this container with no IP for traefik to discover.
+#
+# Prerequisites, in order:
+#   [x] http.use_x_forwarded_for + trusted_proxies in config/configuration.yaml
+#   [x] ip_ban_enabled + login_attempts_threshold (was -1 = never ban)
+#   [x] rate-limit + security-headers middlewares in ../traefik/dynamic/
+#   [ ] TOTP enrolled on the owner account  <-- do this before renaming
+services:
+  homeassistant:
+    image: ghcr.io/home-assistant/home-assistant:stable
+    container_name: homeassistant
+    restart: unless-stopped
+    # Bounded logs: 3 rotated files of 10 MB, so 30 MB at worst. This is by far
+    # the noisiest container here (~6 MB/day), which puts 30 MB at roughly four
+    # or five days. json-file has no time-based retention, so size is the only
+    # knob; raise max-file if you want closer to a full week.
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+    # Host networking is what HA recommends: needed for device discovery
+    # (mDNS/SSDP/DHCP) of Chromecast, HomeKit, ESPHome, etc.
+    # Binds :8123 on the host, which is free.
+    network_mode: host
+    cap_add:
+      # Required for Bluetooth adapter management/recovery
+      - NET_ADMIN
+      - NET_RAW
+    environment:
+      TZ: ${TZ:-America/Halifax}
+    volumes:
+      - ./config:/config
+      - /run/dbus:/run/dbus:ro # for Bluetooth integrations
+      # HA's `usb` integration uses pyudev to enumerate serial adapters.
+      # Without this it falls back to scanning /sys and "discovers" the ZBT-2
+      # even when it can't actually open it.
+      - /run/udev:/run/udev:ro
+    devices:
+      # Home Assistant Connect ZBT-2. It is an Espressif USB device (303a:831a)
+      # using the kernel's cdc_acm driver, so the host node is /dev/ttyACM0 --
+      # NOT /dev/ttyUSB0. ttyUSB* is only for external UART bridge chips
+      # (FTDI, CP210x, CH340); the ZBT-2 has native USB, hence ttyACM*.
+      #
+      # Source path is the by-id symlink so it survives replug/reboot renumbering
+      # (ttyACM0 -> ttyACM1 if another CDC device appears first). Target is
+      # hardcoded to /dev/ttyACM0 because HA's ZBT-2 integration expects that.
+      - /dev/serial/by-id/usb-Nabu_Casa_ZBT-2_E072A1FAAD5C-if00:/dev/ttyACM0

@@ -3,6 +3,13 @@ services:
     image: caddy:alpine
     container_name: ${SUBDOMAIN}
     restart: unless-stopped
+    # Bounded logs: 3 rotated files of 10 MB, so 30 MB per site at worst.
+    # json-file has no time-based retention, so size is the only knob there is.
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
     volumes:
       - ${SITE_SOURCE}:/srv:ro
       - ${CADDYFILE:-./default.Caddyfile}:/etc/caddy/Caddyfile:ro

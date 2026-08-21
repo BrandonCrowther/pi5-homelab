@@ -1,8 +1,7 @@
-# whoami.yml
 services:
-  whoami:
-    image: traefik/whoami
-    container_name: whoami
+  photofield:
+    image: ghcr.io/smilyorg/photofield:latest
+    container_name: maddy
     restart: unless-stopped
     # Bounded logs: 3 rotated files of 10 MB, so 30 MB per service at worst.
     # json-file has no time-based retention, so size is the only knob there is.
@@ -11,15 +10,17 @@ services:
       options:
         max-size: "10m"
         max-file: "3"
+    volumes:
+      - ./photos:/app/photos:ro
+      - ./data:/app/data
     networks:
       - backend
     labels:
       - "traefik.enable=true"
-      # HTTPS router - global redirect handles HTTP to HTTPS
-      - "traefik.http.routers.whoami.rule=Host(`whoami.${DOMAIN}`)"
-      - "traefik.http.routers.whoami.entrypoints=websecure"
-      - "traefik.http.routers.whoami.tls=true"
-      - "traefik.http.routers.whoami.tls.certresolver=le"
+      - "traefik.http.routers.photofield.rule=Host(`maddy.${DOMAIN}`)"
+      - "traefik.http.routers.photofield.entrypoints=websecure"
+      - "traefik.http.routers.photofield.tls=true"
+      - "traefik.http.routers.photofield.tls.certresolver=le"
 
 networks:
   backend:
