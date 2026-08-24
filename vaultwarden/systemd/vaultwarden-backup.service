@@ -1,0 +1,26 @@
+[Unit]
+Description=Vaultwarden encrypted backup
+Documentation=file:///home/admin/dev/pi5-homelab/vaultwarden/SECURITY-HANDOFF.md
+# Not Requires=: if docker is down we still want to back up whatever is on
+# disk. The SQLite backup API does not need the container running.
+After=docker.service
+
+[Service]
+Type=oneshot
+ExecStart=/home/admin/dev/pi5-homelab/vaultwarden/backup.sh
+# Root because vw-data/ is root-owned. Narrow what root means here:
+ProtectSystem=strict
+ProtectHome=read-only
+ReadWritePaths=/var/backups/vaultwarden
+# gpg insists on writing random_seed and the trustdb even for a pure encrypt.
+# Under ProtectSystem=strict it cannot, and while the encryption still succeeds
+# today, it does so while printing errors -- which is how a real failure gets
+# missed later. This dir holds only the PUBLIC key, so making it writable costs
+# nothing; the secret key is not on this machine.
+ReadWritePaths=/root/.gnupg-vwbackup
+# ProtectHome=read-only would otherwise block the Home Assistant status file.
+# This is a single JSON status document in HA's bind-mounted config dir --
+# see STATUS in backup.sh.
+ReadWritePaths=/home/admin/dev/pi5-homelab/homeassistant/config
+PrivateTmp=true
+NoNewPrivileges=true

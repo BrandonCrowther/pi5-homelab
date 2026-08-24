@@ -1,0 +1,13 @@
+[Unit]
+Description=Nightly Vaultwarden encrypted backup
+
+[Timer]
+OnCalendar=daily
+# The Pi is not always up at 00:00; run the missed job on next boot instead of
+# silently skipping a day. This is the difference between "30 daily backups"
+# and "30 backups from whenever the Pi happened to be awake".
+Persistent=true
+RandomizedDelaySec=900
+
+[Install]
+WantedBy=timers.target

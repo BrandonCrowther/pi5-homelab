@@ -1,6 +1,14 @@
 services:
   vaultwarden:
-    image: vaultwarden/server:latest
+    # Pinned deliberately. This was `:latest` from 2026-01 until 2026-08-23,
+    # which meant the running binary was 1.35.2 while the tag claimed current --
+    # 7 months and one High-severity brute-force-bypass advisory behind. A tag
+    # only updates when something re-pulls, and nothing on this host does.
+    # Pinning makes each update an explicit, revertible commit instead.
+    # Check https://github.com/dani-garcia/vaultwarden/releases before bumping,
+    # and back up vw-data/ first: schema migrations run on start and are not
+    # designed to be rolled back.
+    image: vaultwarden/server:1.37.2
     container_name: vaultwarden
     restart: unless-stopped
     # Bounded logs: 3 rotated files of 10 MB, so 30 MB per service at worst.
@@ -13,6 +21,41 @@ services:
     environment:
       DOMAIN: "https://vault.${DOMAIN}"
       WEBSOCKET_ENABLED: "true"
+      # Must be set explicitly. Vaultwarden defaults SIGNUPS_ALLOWED to *true*,
+      # so leaving it unset left this internet-facing instance open to anyone
+      # who found the hostname. An attacker account does not expose the owner's
+      # vault (ciphers are encrypted client-side per user), but it does grant an
+      # authenticated session, which is the precondition for most of the
+      # org/cipher/attachment advisories.
+      #
+      # DO NOT verify this with `/api/config | grep disableUserRegistration`.
+      # That field is `is_signup_disabled()` in config.rs, whose only job is
+      # deciding whether the web vault renders a "Create account" link. It stays
+      # *false* here even with signups off, because the condition includes
+      # `(mail_enabled || !invitations_allowed)` and this host has no SMTP while
+      # INVITATIONS_ALLOWED defaults to true -- so the link stays visible for
+      # invited users to self-register. It is a UI hint, not the gate.
+      #
+      # The gate is `is_signup_allowed()`, checked in accounts.rs::register.
+      # Verify enforcement by actually attempting a registration; it must return
+      # HTTP 400 "Registration not allowed or user already exists".
+      #
+      # The payload must be COMPLETE. A minimal body trips `data.unprocessable()`
+      # and returns 422 *before* the signup check is ever reached -- which looks
+      # like a rejection but proves nothing about whether signups are off:
+      #   curl -s -X POST https://vault.$DOMAIN/identity/accounts/register \
+      #     -H 'Content-Type: application/json' -d '{
+      #       "email":"probe@example.invalid","name":"probe",
+      #       "masterPasswordHash":"aGFzaGhhc2hoYXNoaGFzaGhhc2g=",
+      #       "masterPasswordHint":null,"key":"2.abc|def|ghi",
+      #       "kdf":0,"kdfIterations":600000,
+      #       "keys":{"publicKey":"MIIBIjAN","encryptedPrivateKey":"2.abc|def|ghi"}}'
+      # 400 = enforced. 422 = your payload was malformed; the test did not run.
+      #
+      # To add family later, prefer SIGNUPS_DOMAINS_WHITELIST plus invitations
+      # over reopening this -- but note invitations normally need SMTP, which
+      # this host does not have.
+      SIGNUPS_ALLOWED: "false"
     volumes:
       - ./vw-data/:/data/
     networks:
@@ -28,6 +71,36 @@ services:
       # ../traefik/dynamic/middlewares.yml. This is a public, credential-bearing
       # endpoint that previously had no throttling in front of it at all.
       - "traefik.http.routers.vaultwarden.middlewares=secure-public@file"
+      # Strict limiter on the login endpoint only. `rate-limit` in the chain
+      # above is 30 req/s per IP -- fine for the web vault, which opens dozens
+      # of parallel asset/websocket requests, but ~2.6M password attempts/day
+      # from one source. `rate-limit-auth` (1 req/s, burst 5) was written for
+      # exactly this in ../traefik/dynamic/middlewares.yml and was applied to
+      # nothing until now.
+      #
+      # This matters more than it looks: 1.35.2 shipped a brute-force
+      # protection bypass (GHSA-c5rv-q295-7w4g), so the server's own attempt
+      # limiter could not be relied on. Fixed by the 1.37.2 pin above, but the
+      # account is still password-only, so this stays the outer guard.
+      #
+      # Path verified against `docker logs vaultwarden` and identity.rs (route
+      # `/connect/token` mounted at `/identity`) -- not assumed.
+      #
+      # Separate router, higher priority. Traefik's default priority is rule
+      # length, so this longer rule would already win, but state it explicitly:
+      # if the generous router ever outranked this one, all login traffic would
+      # silently use the 30 req/s limit with no visible symptom.
+      #
+      # Note /identity/connect/token also serves refresh_token grants, so the
+      # burst of 5 has to cover normal client sync, not just logins. Five
+      # registered devices behind one NAT IP fit comfortably; revisit if
+      # "429 Too Many Requests" ever shows up in normal use.
+      - "traefik.http.routers.vw-auth.rule=Host(`vault.${DOMAIN}`) && PathPrefix(`/identity/connect/token`)"
+      - "traefik.http.routers.vw-auth.priority=100"
+      - "traefik.http.routers.vw-auth.entrypoints=websecure"
+      - "traefik.http.routers.vw-auth.tls=true"
+      - "traefik.http.routers.vw-auth.tls.certresolver=le"
+      - "traefik.http.routers.vw-auth.middlewares=security-headers@file,rate-limit-auth@file"
 
 networks:
   backend:

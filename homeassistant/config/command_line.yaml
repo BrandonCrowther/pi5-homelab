@@ -99,3 +99,58 @@
     command: 'curl -sfL -o /dev/null --max-time 10 http://192.168.2.3:61208/api/4/cpu && echo ON || echo OFF'
     device_class: connectivity
     scan_interval: 60
+
+# --- Vaultwarden backup health -------------------------------------------
+#
+# Source is a status file written by ../../vaultwarden/backup.sh on EVERY exit
+# path, success or failure. It lands in this directory, which is bind mounted
+# into this container as /config, so the sensor is a plain file read: no API
+# token, no network hop, nothing to leak, and it keeps working if the network
+# is down (which is exactly when you want to trust your backup monitoring).
+#
+# The critical design point is that "no news" must not read as good news. Three
+# distinct failures have to look identical to Home Assistant:
+#
+#   1. the backup ran and failed        -> status field is "failed"
+#   2. the backup never ran at all      -> file is stale (timer dead, Pi down,
+#                                          unit masked, disk full at boot)
+#   3. the backup was never set up      -> file absent
+#
+# A sensor that only checks the status field catches (1) and silently reports
+# healthy forever for (2) and (3) -- the failure mode that matters most, since
+# a backup system that quietly stops running is the normal way this goes wrong.
+# The mtime check covers (2): backup.sh rewrites this file on every run, so its
+# mtime IS the last-attempt time even when the script dies early.
+#
+# 129600s = 36h. The timer is daily with up to 15 min jitter, so 36h tolerates
+# one late or missed run without crying wolf, while still alerting well within
+# the 30-backup retention window.
+#
+# All four states were tested against this exact command inside the HA
+# container: healthy -> OFF, status failed -> ON, 3-day-old file -> ON,
+# missing file -> ON, 20h-old healthy file -> OFF.
+- binary_sensor:
+    name: Vaultwarden Backup Problem
+    unique_id: vaultwarden_backup_problem
+    command: >-
+      f=/config/vaultwarden_backup.json;
+      if [ ! -f "$f" ]; then echo ON;
+      elif [ $(( $(date +%s) - $(stat -c %Y "$f") )) -gt 129600 ]; then echo ON;
+      elif ! grep -q '"status": *"ok"' "$f"; then echo ON;
+      else echo OFF; fi
+    device_class: problem
+    scan_interval: 300
+
+# Detail companion. State is the status word; `ciphers` and `retained` ride as
+# attributes. `ciphers` is the useful one -- if it ever drops toward zero while
+# the vault is in use, the problem is the vault, not the backup.
+- sensor:
+    name: Vaultwarden Backup
+    unique_id: vaultwarden_backup
+    command: 'cat /config/vaultwarden_backup.json 2>/dev/null || echo {}'
+    value_template: "{{ value_json.status | default('unknown') }}"
+    json_attributes:
+      - timestamp
+      - ciphers
+      - retained
+    scan_interval: 300

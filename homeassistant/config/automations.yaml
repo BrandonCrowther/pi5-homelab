@@ -28,9 +28,15 @@
 # To make it work, shorten ZHA's availability window: Settings -> Devices &
 # Services -> ZHA -> Configure -> "Consider unavailable (mains)", set to ~60s.
 # Until that is done, the bulb's firmware power_on_level below is doing ALL of
-# the work, which means the light stays dim during the day as well.
+# the work. That is survivable now that it tracks the sun -- dim after dark,
+# bright during the day -- but it only updates on the schedule below, so a flip
+# shortly after a sun crossing can still use the previous half-day's value.
 - id: bathroom_adaptive_lighting_reapply_on_available
-  initial_state: false  # TEMPORARY: off for the power-on-level test
+  # Must be explicit. Dropping this key does NOT re-enable the automation --
+  # without it HA restores the entity's last persisted enabled/disabled state,
+  # which was 'off' from the power-on-level test, so it stayed off across a
+  # restart even after the `initial_state: false` line was removed.
+  initial_state: true
   alias: Bathroom light - re-apply adaptive curve when it comes back on
   description: >-
     Covers the wall-switch/rejoin case that Adaptive Lighting's own
@@ -106,10 +112,7 @@
     # Let ZHA finish interrogating the device; writes before that get dropped.
     - delay: "00:00:10"
     - variables:
-        # TEMPORARY: pinned to 13 for the test. Restore to
-        #   {{ 13 if is_state('sun.sun', 'below_horizon') else 254 }}
-        # once we know whether OnLevel is the culprit.
-        target: 13
+        target: "{{ 13 if is_state('sun.sun', 'below_horizon') else 254 }}"
     # Write BOTH attributes. StartUpCurrentLevel (0x4000) sets the level at
     # power-up; OnLevel (0x0011) is what the bulb jumps to on an Off->On
     # transition, which StartUpOnOff=1 forces at every power-up. If this
