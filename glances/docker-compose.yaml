@@ -16,7 +16,7 @@ services:
     pid: host
     environment:
       # -w runs the web server, which also serves the REST API under /api/4/.
-      GLANCES_OPT: "-w"
+      GLANCES_OPT: "-w --disable-autodiscover"
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock:ro
       - /etc/os-release:/etc/os-release:ro
