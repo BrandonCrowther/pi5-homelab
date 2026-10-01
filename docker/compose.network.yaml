@@ -1,0 +1,6 @@
+# The shared network every bridged stack joins so traefik can reach it.
+# The traefik stack creates it; everything else pulls this in via `include:`.
+networks:
+  backend:
+    name: traefik_backend
+    external: true

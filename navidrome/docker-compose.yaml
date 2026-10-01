@@ -1,0 +1,107 @@
+include:
+  - ../docker/compose.network.yaml
+
+services:
+  navidrome:
+    # Pinned, not :latest. Navidrome 0.64.1 fixed an unauthenticated
+    # brute-force against the Subsonic API (plus four other advisories), and a
+    # floating tag only moves when something re-pulls -- nothing on this host
+    # does. Pinning makes each bump an explicit, revertible commit.
+    # Releases: https://github.com/navidrome/navidrome/releases
+    image: deluan/navidrome:0.64.2
+    container_name: navidrome
+    restart: unless-stopped
+    # Run as the repo owner rather than root, so ./data stays editable
+    # without sudo. Navidrome writes its SQLite DB and artwork cache
+    # there, so this uid must own the directory before first start.
+    user: "1000:1000"
+    environment:
+      TZ: ${TZ}
+      # Navidrome reads every ND_* var as a config key; these mirror
+      # navidrome.toml options, so anything in the docs can be set here.
+      # https://www.navidrome.org/docs/usage/configuration-options/
+      ND_MUSICFOLDER: /music
+      ND_DATAFOLDER: /data
+      # Watches the library with inotify and rescans changed dirs immediately.
+      # ND_SCANSCHEDULE below is the backstop for changes inotify misses
+      # (network mounts, or a drive that was offline during a change).
+      ND_SCANNER_WATCHERWAIT: 10s
+      ND_SCANSCHEDULE: "@every 24h"
+      # Anonymous usage telemetry. Opt-out is deliberate and explicit -- the
+      # default prompts and then starts sending. Nothing here needs to phone
+      # home to work.
+      ND_ENABLEINSIGHTS: "false"
+      # How long a web-UI session token stays valid. This is NOT "0 = never":
+      # 0 mints an already-expired JWT, so login succeeds and the very next
+      # API call 401s straight back to the login page. Must be a real duration.
+      # Navidrome's own default is 48h; 72h here so a weekend does not log you
+      # out. Shorten it before putting this behind a public hostname.
+      # (Does not affect Subsonic clients -- they send credentials per request
+      # and never hold a session.)
+      ND_SESSIONTIMEOUT: 72h
+      # Transcoding is enabled per-player in the UI, not here. Worth knowing
+      # for later: audio transcode on a Pi 5 is cheap (Opus 96k is a few
+      # percent of one core and needs no hardware encoder).
+      # ffmpeg ships inside this image; nothing extra to install.
+      ND_LOGLEVEL: info
+    volumes:
+      # SQLite DB, artwork cache, and search index. Credential-bearing --
+      # gitignored, see ../.gitignore.
+      - ./data:/data
+      # Read-only on purpose: Navidrome never needs to write to the library.
+      # Tag edits happen in a tagger on the desktop, not through the server.
+      - ${MUSIC_ROOT}:/music:ro
+    # /ping is Navidrome's liveness endpoint (200 + "." when the HTTP server
+    # and DB are up). wget ships in the image; verified with
+    # `docker exec navidrome command -v wget`.
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:4533/ping"]
+      interval: 30s
+      timeout: 5s
+      start_period: 20s
+      retries: 3
+    ports:
+      # LAN only -- the Traefik labels below are deliberately inert. Nothing
+      # routes this from outside.
+      - "4533:4533"
+    networks:
+      - backend
+
+    # ------------------------------------------------------------------
+    # Public route, PRE-WRITTEN AND DISABLED. To go live:
+    #   1. Decide the access model first. Subsonic clients cannot do OIDC or
+    #      2FA, so publishing this means a single password is the only thing
+    #      in front of the library. The alternative is Tailscale + staying
+    #      LAN-only; every iOS client works over it unchanged.
+    #   2. Set a long, unique admin password. The Subsonic API's token+salt
+    #      auth requires the server to store passwords recoverably, so this
+    #      password must not be reused from anywhere else.
+    #   3. Set ND_BASEURL is NOT needed (this is a subdomain, not a subpath),
+    #      but DO set ND_SESSIONTIMEOUT above to something finite.
+    #   4. Uncomment the block, add DOMAIN to .env, `docker compose up -d`.
+    #   5. Verify the cert: curl -sI https://music.bcrowthe.com | head -1
+    #
+    # labels:
+    #   - "traefik.enable=true"
+    #   - "traefik.http.routers.navidrome.rule=Host(`music.${DOMAIN}`)"
+    #   - "traefik.http.routers.navidrome.entrypoints=websecure"
+    #   - "traefik.http.routers.navidrome.tls=true"
+    #   - "traefik.http.routers.navidrome.tls.certresolver=le"
+    #   - "traefik.http.routers.navidrome.middlewares=secure-public@file"
+    #   # Strict limiter on the two auth paths: the web UI login and the
+    #   # Subsonic API, which takes credentials on EVERY request (?u=&t=&s=)
+    #   # rather than holding a session -- so it is a brute-force surface on
+    #   # its own, which is exactly what 0.64.1 patched. Separate router,
+    #   # explicit priority so it cannot lose to the generous one above.
+    #   - "traefik.http.routers.nd-auth.rule=Host(`music.${DOMAIN}`) && (PathPrefix(`/auth/login`) || PathPrefix(`/rest/`))"
+    #   - "traefik.http.routers.nd-auth.priority=100"
+    #   - "traefik.http.routers.nd-auth.entrypoints=websecure"
+    #   - "traefik.http.routers.nd-auth.tls=true"
+    #   - "traefik.http.routers.nd-auth.tls.certresolver=le"
+    #   - "traefik.http.routers.nd-auth.middlewares=security-headers@file,rate-limit-auth@file"
+    #   # NOTE: rate-limit-auth is 1 req/s, burst 5. /rest/ is the whole
+    #   # Subsonic surface -- browsing and streaming, not just logins -- so a
+    #   # client doing an offline sync WILL hit 429 at that setting. Before
+    #   # enabling, either narrow the PathPrefix to the endpoints that matter
+    #   # or add a looser dedicated limiter in ../traefik/dynamic/middlewares.yml.
+    # ------------------------------------------------------------------

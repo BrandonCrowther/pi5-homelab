@@ -40,15 +40,14 @@ maddy/photos/
 
 
 
-# Jellyfin: config/ holds the user database, API keys and device tokens, plus
-# scraped metadata and artwork. cache/ is transcode scratch and image cache.
-# Neither is worth versioning and the first is credential-bearing.
-jellyfin/config/
-jellyfin/cache/
-
 # Vaultwarden security handoff: kept OUT of git because this repo is public.
 # It names a live internet-facing service, its unpatched version, its open
 # registration and the advisories it is exposed to -- an exploitation guide
 # while the findings are open. Read it locally at
 # vaultwarden/SECURITY-HANDOFF.md.
 vaultwarden/SECURITY-HANDOFF.md
+
+# Navidrome: data/ holds the SQLite DB (users, password hashes+tokens, play
+# history), the artwork cache and the search index. Credential-bearing and
+# regenerable from the library, so none of it is worth versioning.
+navidrome/data/

@@ -1,30 +1,14 @@
-# Home Assistant - LOCAL ONLY (for now)
-# Reachable on the LAN at http://192.168.2.2:8123
+# Home Assistant
+# LAN: http://192.168.2.2:8123   Public: https://ha.bcrowthe.com
 #
-# Exposure is prepared but NOT active. The route lives in
-# ../traefik/dynamic/homeassistant.yml.disabled -- rename off the .disabled
-# suffix to go live. It uses the file provider rather than labels here because
-# network_mode: host leaves this container with no IP for traefik to discover.
-#
-# Prerequisites, in order:
-#   [x] http.use_x_forwarded_for + trusted_proxies in config/configuration.yaml
-#   [x] ip_ban_enabled + login_attempts_threshold (was -1 = never ban)
-#   [x] rate-limit + security-headers middlewares in ../traefik/dynamic/
-#   [ ] TOTP enrolled on the owner account  <-- do this before renaming
+# The public route lives in ../traefik/dynamic/homeassistant.yml. It uses the
+# file provider rather than labels here because network_mode: host leaves this
+# container with no IP for traefik to discover. Owner account has TOTP enrolled.
 services:
   homeassistant:
     image: ghcr.io/home-assistant/home-assistant:stable
     container_name: homeassistant
     restart: unless-stopped
-    # Bounded logs: 3 rotated files of 10 MB, so 30 MB at worst. This is by far
-    # the noisiest container here (~6 MB/day), which puts 30 MB at roughly four
-    # or five days. json-file has no time-based retention, so size is the only
-    # knob; raise max-file if you want closer to a full week.
-    logging:
-      driver: json-file
-      options:
-        max-size: "10m"
-        max-file: "3"
     # Host networking is what HA recommends: needed for device discovery
     # (mDNS/SSDP/DHCP) of Chromecast, HomeKit, ESPHome, etc.
     # Binds :8123 on the host, which is free.
