@@ -1,6 +1,7 @@
 # Home Assistant public route.
 #
-# Behind secure-public, and the owner account has TOTP enrolled. To take it
+# TLS, cert and secure-public come from the websecure entrypoint (see
+# ../docker-compose.yaml), and the owner account has TOTP enrolled. To take it
 # offline, rename this file to homeassistant.yml.disabled -- the file provider
 # only parses .yml/.yaml/.toml/.json, and watch=true picks the change up within
 # a second. Bans land in homeassistant/config/ip_bans.yaml; delete a line there
@@ -9,12 +10,6 @@ http:
   routers:
     homeassistant:
       rule: "Host(`ha.bcrowthe.com`)"
-      entryPoints:
-        - websecure
-      tls:
-        certResolver: le
-      middlewares:
-        - secure-public@file
       service: homeassistant
 
   services:

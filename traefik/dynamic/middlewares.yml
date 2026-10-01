@@ -4,7 +4,8 @@
 # with watch=true, so edits here apply without restarting traefik.
 http:
   middlewares:
-    # Rate limit for authentication-bearing endpoints. average/burst are per
+    # Baseline rate limit for every public route, via secure-public below.
+    # Sized for the heaviest one, credential-bearing UIs. average/burst are per
     # source IP over the `period`, so this is 30 req/s sustained with a 60-req
     # bucket for bursts -- generous for a dashboard that opens dozens of
     # parallel websocket/asset requests, tight enough that password guessing
@@ -47,7 +48,10 @@ http:
         # own X-Frame-Options: SAMEORIGIN, and its dashboards iframe some
         # panels. Set it per-router where you actually want it.
 
-    # Convenience bundle for public, credential-bearing services.
+    # Baseline for every public route. Applied to all of websecure by the
+    # entrypoint in ../docker-compose.yaml, so routers must NOT list it again.
+    # A broken edit here (or to the two middlewares it chains) takes down every
+    # public route at once, not just one.
     secure-public:
       chain:
         middlewares:

@@ -24,6 +24,20 @@ services:
       - "--providers.file.watch=true"
       - "--entryPoints.web.address=:80"
       - "--entryPoints.websecure.address=:443"
+      # Public route policy lives here, not in each stack's labels. Every router
+      # on websecure gets TLS with a Let's Encrypt cert and the secure-public
+      # chain (security headers + rate limit) without asking, so a stack only
+      # declares its Host rule plus anything stricter, like a login limiter.
+      # Setting any tls.* label on a router replaces this TLS block outright,
+      # resolver included, so that router would quietly stop getting certs.
+      # asDefault makes websecure the only entrypoint for routers that name
+      # none; otherwise they would also bind :80.
+      # Entrypoint middlewares run before the router's own and cannot be
+      # removed per router. A route that must escape secure-public needs an
+      # entrypoint of its own.
+      - "--entryPoints.websecure.asDefault=true"
+      - "--entryPoints.websecure.http.tls.certResolver=le"
+      - "--entryPoints.websecure.http.middlewares=secure-public@file"
       # Global HTTP to HTTPS redirect
       - "--entryPoints.web.http.redirections.entryPoint.to=websecure"
       - "--entryPoints.web.http.redirections.entryPoint.scheme=https"

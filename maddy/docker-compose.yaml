@@ -14,6 +14,3 @@ services:
     labels:
       - "traefik.enable=true"
       - "traefik.http.routers.photofield.rule=Host(`maddy.${DOMAIN}`)"
-      - "traefik.http.routers.photofield.entrypoints=websecure"
-      - "traefik.http.routers.photofield.tls=true"
-      - "traefik.http.routers.photofield.tls.certresolver=le"

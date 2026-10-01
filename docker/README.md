@@ -64,7 +64,9 @@ services:
       - backend
     labels:
       - "traefik.enable=true"
-      # ...router labels...
+      # TLS, cert and secure-public come from traefik's websecure entrypoint,
+      # so the Host rule is all a public route needs.
+      - "traefik.http.routers.myapp.rule=Host(`myapp.${DOMAIN}`)"
 ```
 
 Do not redeclare the network in the stack's own top-level `networks:`. Compose

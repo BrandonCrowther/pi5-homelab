@@ -83,11 +83,8 @@ services:
     #
     # labels:
     #   - "traefik.enable=true"
+    #   # TLS, cert and secure-public come from the websecure entrypoint.
     #   - "traefik.http.routers.navidrome.rule=Host(`music.${DOMAIN}`)"
-    #   - "traefik.http.routers.navidrome.entrypoints=websecure"
-    #   - "traefik.http.routers.navidrome.tls=true"
-    #   - "traefik.http.routers.navidrome.tls.certresolver=le"
-    #   - "traefik.http.routers.navidrome.middlewares=secure-public@file"
     #   # Strict limiter on the two auth paths: the web UI login and the
     #   # Subsonic API, which takes credentials on EVERY request (?u=&t=&s=)
     #   # rather than holding a session -- so it is a brute-force surface on
@@ -95,10 +92,7 @@ services:
     #   # explicit priority so it cannot lose to the generous one above.
     #   - "traefik.http.routers.nd-auth.rule=Host(`music.${DOMAIN}`) && (PathPrefix(`/auth/login`) || PathPrefix(`/rest/`))"
     #   - "traefik.http.routers.nd-auth.priority=100"
-    #   - "traefik.http.routers.nd-auth.entrypoints=websecure"
-    #   - "traefik.http.routers.nd-auth.tls=true"
-    #   - "traefik.http.routers.nd-auth.tls.certresolver=le"
-    #   - "traefik.http.routers.nd-auth.middlewares=security-headers@file,rate-limit-auth@file"
+    #   - "traefik.http.routers.nd-auth.middlewares=rate-limit-auth@file"
     #   # NOTE: rate-limit-auth is 1 req/s, burst 5. /rest/ is the whole
     #   # Subsonic surface -- browsing and streaming, not just logins -- so a
     #   # client doing an offline sync WILL hit 429 at that setting. Before

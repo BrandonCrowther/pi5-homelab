@@ -58,18 +58,13 @@ services:
       - backend
     labels:
       - "traefik.enable=true"
-      # HTTPS router - global redirect handles HTTP to HTTPS
+      # TLS, cert, and secure-public (rate limit + HSTS/nosniff/
+      # referrer-policy) come from the websecure entrypoint; see
+      # ../traefik/docker-compose.yaml.
       - "traefik.http.routers.vaultwarden.rule=Host(`vault.${DOMAIN}`)"
-      - "traefik.http.routers.vaultwarden.entrypoints=websecure"
-      - "traefik.http.routers.vaultwarden.tls=true"
-      - "traefik.http.routers.vaultwarden.tls.certresolver=le"
-      # Rate limit + HSTS/nosniff/referrer-policy. Defined in
-      # ../traefik/dynamic/middlewares.yml. This is a public, credential-bearing
-      # endpoint that previously had no throttling in front of it at all.
-      - "traefik.http.routers.vaultwarden.middlewares=secure-public@file"
-      # Strict limiter on the login endpoint only. `rate-limit` in the chain
-      # above is 30 req/s per IP -- fine for the web vault, which opens dozens
-      # of parallel asset/websocket requests, but ~2.6M password attempts/day
+      # Strict limiter on the login endpoint only. `rate-limit` in secure-public
+      # is 30 req/s per IP -- fine for the web vault, which opens dozens of
+      # parallel asset/websocket requests, but ~2.6M password attempts/day
       # from one source. `rate-limit-auth` (1 req/s, burst 5) was written for
       # exactly this in ../traefik/dynamic/middlewares.yml and was applied to
       # nothing until now.
@@ -93,7 +88,6 @@ services:
       # "429 Too Many Requests" ever shows up in normal use.
       - "traefik.http.routers.vw-auth.rule=Host(`vault.${DOMAIN}`) && PathPrefix(`/identity/connect/token`)"
       - "traefik.http.routers.vw-auth.priority=100"
-      - "traefik.http.routers.vw-auth.entrypoints=websecure"
-      - "traefik.http.routers.vw-auth.tls=true"
-      - "traefik.http.routers.vw-auth.tls.certresolver=le"
-      - "traefik.http.routers.vw-auth.middlewares=security-headers@file,rate-limit-auth@file"
+      # Runs after the entrypoint's secure-public, so requests here pass both
+      # limiters; the stricter one is the one that bites.
+      - "traefik.http.routers.vw-auth.middlewares=rate-limit-auth@file"
